@@ -1,0 +1,7 @@
+#ifndef _DISPLAY_H
+#define _DISPLAY_H
+
+//////////////////////////////////////////////////////////////
+extern GtkWidget *d_init (void);
+
+#endif
