@@ -1,8 +1,6 @@
 #include <gtk/gtk.h>
 #include <cairo.h>
 #include <gdk/gdkkeysyms.h>
-#include <signal.h>
-#include <time.h>
 #include <stdlib.h>
 #include "display.h"
 #include "tetris.h"
@@ -13,12 +11,13 @@
 #define TE_PIXEL_HEIGHT  30  // pixel
 #define TETRIMINO_WIDTH  TE_PIXEL_WIDTH  // pixels
 
-GtkWidget *drawable_table;
-GtkWidget *drawable_next;
+static GtkWidget *drawable_table;
+static GtkWidget *drawable_next;
+static GtkWidget *label_score;
 static gboolean is_pause = TRUE;
-static timer_t timer;
+static gboolean is_game_over = FALSE;
 
-static int d_force_table_update (void)
+static void d_force_table_update (void)
 {
 	GdkWindow *window;
 	GdkRectangle rect;
@@ -32,11 +31,9 @@ static int d_force_table_update (void)
 
 	gdk_window_invalidate_rect (window, &rect, FALSE);
 	gdk_window_process_updates (window, FALSE);
-
-	return 0;
 }
 
-static int d_force_next_update (void)
+static void d_force_next_update (void)
 {
 	GdkWindow *window;
 	GdkRectangle rect;
@@ -50,94 +47,53 @@ static int d_force_next_update (void)
 
 	gdk_window_invalidate_rect (window, &rect, FALSE);
 	gdk_window_process_updates (window, FALSE);
-
-	return 0;
 }
-
-
-static void timout_fun (union sigval val)
-{
-	t_key_down ();
-	d_force_next_update ();
-	d_force_table_update ();
-}
-
-static int d_create_timer (void)
-{
-	struct sigevent *sevp;
-	extern timer_t timer;
-	extern void timout_fun (union sigval val);
-
-	sevp = (struct sigevent *) malloc (sizeof (struct sigevent));
-	//sevp->sigev_notify = SIGEV_THREAD;
-	sevp->sigev_notify = SIGEV_NONE;
-	sevp->sigev_signo = SIGRTMIN;
-	sevp->sigev_value.sival_ptr = &timer;
-	sevp->sigev_notify_function = &timout_fun;
-	sevp->sigev_notify_attributes = NULL;
-
-	if (-1 == timer_create (CLOCK_REALTIME, sevp, &timer)) {
-		printf ("timer_create failed!\n");
-		exit (1);
-	}
-
-	free (sevp);
-	return 0;
-}
-
-static int d_set_time (time_t sec, long nsec)
-{
-	struct itimerspec it;
-	extern timer_t timer;
-
-	//it.it_interval.tv_sec = sec;
-	//it.it_interval.tv_nsec = nsec;
-	it.it_interval.tv_sec = 0;
-	it.it_interval.tv_nsec = 0;
-	it.it_value.tv_sec = sec;
-	it.it_value.tv_nsec = nsec;
-
-	if (-1 == timer_settime (timer, 0, &it, NULL)) {
-		printf ("timer_settime failed!\n");
-		exit (1);
-	}
-}
-
-static int d_get_time (time_t *sec, long *nsec)
-{
-	struct itimerspec it;
-
-	if (-1 == timer_gettime (timer, &it)) {
-		printf ("timer_gettime failed!\n");
-		exit (1);
-	}
-
-	*sec = it.it_value.tv_sec;
-	*nsec =  it.it_value.tv_nsec;
-
-	return 0;
-}
-
-static void d_main (void)
-{
-	extern int d_get_time (time_t *sec, long *nsec);
-	long sec = 0, nsec = 0;
-
-	while (1) {
-		d_get_time ((time_t *)(&sec), &nsec);
-		if ((sec == 0) && (nsec == 0)) {
-			t_key_down ();
-			d_force_next_update ();
-			d_force_table_update ();
-
-			d_set_time (1, 0);
-		}
-	}
-}
-
-
 
 ////////////////////////////////////////////////////////////////////////
+static void d_game_over (void)
+{
+	GtkWidget *dialog = NULL;
+
+	dialog = gtk_message_dialog_new (NULL, GTK_DIALOG_MODAL,
+			GTK_MESSAGE_INFO, GTK_BUTTONS_CLOSE,
+			"LOSER");
+}
+
+static void d_update_score (void)
+{
+	char buf[10] = "";
+
+	sprintf (buf, "%d", t_get_score ());
+	gtk_label_set_text (GTK_LABEL (label_score), buf);
+}
+
+static gboolean on_play_timeout (gpointer data)
+{
+	if (is_game_over)
+		return FALSE;
+
+	if (t_key_down () == 0) {
+		d_force_table_update ();
+	} else {
+		if (t_te_out () == 0) {
+			t_check_and_score ();
+			d_update_score ();
+			t_te_create_next ();
+			d_force_table_update ();
+			d_force_next_update ();
+		} else {
+			is_game_over = TRUE;
+			return FALSE;
+		}
+	}
+
+	if (is_pause) {
+		return FALSE;
+	} else {
+		return TRUE;
+	}
+}
+
 static void second_to_print (gint second, gchar *buffer)  // OK
 {
 	gint hour, min, sec;
@@ -172,19 +128,41 @@ static gboolean on_key_press (GtkWidget *widget,
 		GdkEventKey *event,
 		gpointer data)
 {
+	if (is_game_over)
+		return FALSE;
+
+	if (is_pause)
+		return FALSE;
+
 	switch (event->keyval) {
-	case GDK_KEY_Up:printf ("up up up\n");
+	case GDK_KEY_Up:
 		t_key_turn ();
+		d_force_table_update ();
 		break;
-	case GDK_KEY_Down:printf ("down down down\n");
-		t_key_down ();
+
+	case GDK_KEY_Down:
+		if (t_key_down () == 0) {
+			d_force_table_update ();
+		} else {
+			t_check_and_score ();
+			d_update_score ();
+			t_te_create_next ();
+			t_te_out ();
+			d_force_table_update ();
+			d_force_next_update ();
+		}
 		break;
-	case GDK_KEY_Left:printf ("left left left\n");
+
+	case GDK_KEY_Left:
 		t_key_left ();
+		d_force_table_update ();
 		break;
-	case GDK_KEY_Right:printf ("right right right\n");
+
+	case GDK_KEY_Right:
 		t_key_right ();
+		d_force_table_update ();
 		break;
+
 	default:;
 	}
 
@@ -268,30 +246,32 @@ static gboolean on_pause_clicked (GtkWidget *widget,
 	extern gboolean is_pause;
 	static gboolean is_first_clicked = TRUE;
 
+	if (is_game_over)
+		return FALSE;
+
 	if (is_first_clicked) {
 		t_te_create_next ();
-		t_te_out ();
-		d_force_next_update ();
-		d_force_table_update ();
-
-		//d_set_time (1, 0);
-		//d_main ();
+		if (t_te_out () == 0) {
+			d_force_next_update ();
+			d_force_table_update ();
+		} else {
+			is_game_over = TRUE;
+		}
 
 		is_first_clicked = FALSE;
 	}
 
 	if (is_pause) {
 		is_pause = FALSE;
-		d_set_time (1, 0);
 		gtk_button_set_label (GTK_BUTTON (widget), "Pause");
+		g_timeout_add (1000, on_play_timeout, NULL);
 	} else {
 		is_pause = TRUE;
-		d_set_time (0, 0);
 		gtk_button_set_label (GTK_BUTTON (widget), "Start");
 	}
 }
 
-static gint on_timeout (gpointer data)
+static gboolean on_timeout (gpointer data)
 {
 	GtkWidget *label;
 	gchar buf[20] = "";
@@ -304,13 +284,9 @@ static gint on_timeout (gpointer data)
 
 		label = (GtkWidget *)data;
 		gtk_label_set_text (GTK_LABEL (label), buf);
-
-	t_key_down ();
-	d_force_next_update ();
-	d_force_table_update ();
 	}
 
-	return 1;
+	return TRUE;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -344,7 +320,7 @@ static GtkWidget *d_score (void)
 {
 	GtkWidget *vbox;
 	GtkWidget *hbox1, *hbox2;
-	GtkWidget *label, *label_score;
+	GtkWidget *label;
 
 	vbox = gtk_vbox_new (FALSE, 0);
 	hbox1 = gtk_hbox_new (FALSE, 0);
@@ -377,7 +353,7 @@ static GtkWidget *d_time (void)
 	gtk_box_pack_start (GTK_BOX (vbox), hbox1, FALSE, FALSE, 0);
 	gtk_box_pack_start (GTK_BOX (vbox), label_time, FALSE, FALSE, 0);
 
-	gtk_timeout_add (1000, on_timeout, (gpointer)label_time);
+	g_timeout_add (1000, on_timeout, (gpointer)label_time);
 
 	return vbox;
 }
@@ -445,8 +421,6 @@ GtkWidget *d_init (void)
 
 	gtk_container_add (GTK_CONTAINER (window), hbox);
 
-
-	d_create_timer ();
 	t_te_create ();
 
 	return window;

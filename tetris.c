@@ -193,6 +193,12 @@ static int t_is_turn_legal (void)
 		if (t->table[y][x] != 0) {
 			return 0;
 		}
+		if ((x > T_MAX_X) || (x < 0)) {
+			return 0;
+		}
+		if (y > T_MAX_Y) {
+			return 0;
+		}
 	}
 
 	return 1;
@@ -290,7 +296,6 @@ int t_key_down (void)
 {
 	if (t_is_move_down_legal ()) {
 		t_move_down();
-		//t_check_and_score ();
 		return 0;
 	} else {
 		return -1;
