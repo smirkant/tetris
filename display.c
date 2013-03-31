@@ -17,7 +17,65 @@ static GtkWidget *label_score;
 static gboolean is_pause = TRUE;
 static gboolean is_game_over = FALSE;
 
-static void d_force_table_update (void)
+
+static gboolean d_handle_te_down (void);
+static void d_force_table_update (void);  // ok
+static void d_force_next_update (void); // ok
+static void d_update_score (void);  // ok
+static gboolean on_play_timeout (gpointer data);
+static void second_to_print (gint second, gchar *buffer);  // OK
+static gboolean on_key_press (GtkWidget *widget,  // ok
+		GdkEventKey *event,
+		gpointer data);
+static gboolean on_expose_next (GtkWidget *widget,  // ok
+		GdkEventExpose *event,
+		gpointer data);
+static gboolean on_expose_table (GtkWidget *widget,  // ok
+		GdkEventExpose *event,
+		gpointer data);
+static gboolean on_pause_clicked (GtkWidget *widget,
+		gpointer data);
+static gboolean on_timeout (gpointer data); // ok
+static GtkWidget *d_next (void);  // ok
+static GtkWidget *d_score (void);  // ok
+static GtkWidget *d_time (void);  // ok
+static GtkWidget *d_pause (void); // ok
+static GtkWidget *d_table (void);  // ok
+GtkWidget *d_init (void); // ok
+
+////////////////////////////////////////////////////////////////
+static gboolean d_handle_te_down (void)
+{
+	gboolean ret;
+
+	if (is_game_over)
+		return FALSE;
+
+	if (is_pause) {
+		return FALSE;
+	} else {
+		ret = TRUE;
+	}
+
+	if (t_key_down () == 0) {
+		d_force_table_update ();
+	} else {
+		t_check_and_score ();
+		d_update_score ();
+		if (t_te_out () == 0) {
+			t_te_create_next ();
+			d_force_table_update ();
+			d_force_next_update ();
+		} else {
+			is_game_over = TRUE;
+			return FALSE;
+		}
+	}
+
+	return ret;
+}
+
+static void d_force_table_update (void)  // ok
 {
 	GdkWindow *window;
 	GdkRectangle rect;
@@ -33,7 +91,7 @@ static void d_force_table_update (void)
 	gdk_window_process_updates (window, FALSE);
 }
 
-static void d_force_next_update (void)
+static void d_force_next_update (void) // ok
 {
 	GdkWindow *window;
 	GdkRectangle rect;
@@ -50,16 +108,8 @@ static void d_force_next_update (void)
 }
 
 ////////////////////////////////////////////////////////////////////////
-static void d_game_over (void)
-{
-	GtkWidget *dialog = NULL;
 
-	dialog = gtk_message_dialog_new (NULL, GTK_DIALOG_MODAL,
-			GTK_MESSAGE_INFO, GTK_BUTTONS_CLOSE,
-			"LOSER");
-}
-
-static void d_update_score (void)
+static void d_update_score (void)  // ok
 {
 	char buf[10] = "";
 
@@ -69,29 +119,7 @@ static void d_update_score (void)
 
 static gboolean on_play_timeout (gpointer data)
 {
-	if (is_game_over)
-		return FALSE;
-
-	if (t_key_down () == 0) {
-		d_force_table_update ();
-	} else {
-		if (t_te_out () == 0) {
-			t_check_and_score ();
-			d_update_score ();
-			t_te_create_next ();
-			d_force_table_update ();
-			d_force_next_update ();
-		} else {
-			is_game_over = TRUE;
-			return FALSE;
-		}
-	}
-
-	if (is_pause) {
-		return FALSE;
-	} else {
-		return TRUE;
-	}
+	return d_handle_te_down ();
 }
 
 static void second_to_print (gint second, gchar *buffer)  // OK
@@ -124,7 +152,7 @@ static void second_to_print (gint second, gchar *buffer)  // OK
 	sprintf (buffer, "%s:%s:%s", shour, smin, ssec);
 }
 
-static gboolean on_key_press (GtkWidget *widget,
+static gboolean on_key_press (GtkWidget *widget,  // ok
 		GdkEventKey *event,
 		gpointer data)
 {
@@ -141,16 +169,7 @@ static gboolean on_key_press (GtkWidget *widget,
 		break;
 
 	case GDK_KEY_Down:
-		if (t_key_down () == 0) {
-			d_force_table_update ();
-		} else {
-			t_check_and_score ();
-			d_update_score ();
-			t_te_create_next ();
-			t_te_out ();
-			d_force_table_update ();
-			d_force_next_update ();
-		}
+		d_handle_te_down ();
 		break;
 
 	case GDK_KEY_Left:
@@ -169,7 +188,7 @@ static gboolean on_key_press (GtkWidget *widget,
 	return FALSE;
 }
 
-static gboolean on_expose_next (GtkWidget *widget,
+static gboolean on_expose_next (GtkWidget *widget,  // ok
 		GdkEventExpose *event,
 		gpointer data)
 {	
@@ -203,7 +222,7 @@ static gboolean on_expose_next (GtkWidget *widget,
 	return FALSE;
 }
 
-static gboolean on_expose_table (GtkWidget *widget,
+static gboolean on_expose_table (GtkWidget *widget,  // ok
 		GdkEventExpose *event,
 		gpointer data)
 {
@@ -269,14 +288,15 @@ static gboolean on_pause_clicked (GtkWidget *widget,
 		is_pause = TRUE;
 		gtk_button_set_label (GTK_BUTTON (widget), "Start");
 	}
+
+	return FALSE;
 }
 
-static gboolean on_timeout (gpointer data)
+static gboolean on_timeout (gpointer data) // ok
 {
 	GtkWidget *label;
 	gchar buf[20] = "";
 	static gint time_second = 0;
-	extern gboolean is_timing;
 
 	if (!is_pause) {
 		time_second++;
@@ -290,7 +310,7 @@ static gboolean on_timeout (gpointer data)
 }
 
 /////////////////////////////////////////////////////////////////////
-static GtkWidget *d_next (void)
+static GtkWidget *d_next (void)  // ok
 {
 	GtkWidget *vbox;
 	GtkWidget *hbox1, *hbox2;
@@ -316,7 +336,7 @@ static GtkWidget *d_next (void)
 	return vbox;
 }
 
-static GtkWidget *d_score (void)
+static GtkWidget *d_score (void)  // ok
 {
 	GtkWidget *vbox;
 	GtkWidget *hbox1, *hbox2;
@@ -336,7 +356,7 @@ static GtkWidget *d_score (void)
 	return vbox;
 }
 
-static GtkWidget *d_time (void)
+static GtkWidget *d_time (void)  // ok
 {
 	GtkWidget *vbox;
 	GtkWidget *hbox1, *hbox2;
@@ -358,7 +378,7 @@ static GtkWidget *d_time (void)
 	return vbox;
 }
 
-static GtkWidget *d_pause (void)
+static GtkWidget *d_pause (void) // ok
 {
 	GtkWidget *hbox;
 	GtkWidget *button;
@@ -374,7 +394,7 @@ static GtkWidget *d_pause (void)
 	return hbox;
 }
 
-static GtkWidget *d_table (void)
+static GtkWidget *d_table (void)  // ok
 {
 	drawable_table = gtk_drawing_area_new ();
 	gtk_drawing_area_size (GTK_DRAWING_AREA (drawable_table), 
@@ -387,7 +407,7 @@ static GtkWidget *d_table (void)
 }
 //////////////////////////////////////////////////////////////////
 
-GtkWidget *d_init (void)
+GtkWidget *d_init (void) // ok
 {
 	GtkWidget *window;
 	GtkWidget *hbox, *vbox;
@@ -400,12 +420,12 @@ GtkWidget *d_init (void)
 	gtk_container_set_border_width (GTK_CONTAINER (window), 5);
 	g_signal_connect (GTK_OBJECT (window), "destroy",
 			G_CALLBACK (gtk_main_quit), NULL);
-	g_signal_connect (window, "key_press_event",
+	table = d_table ();
+	g_signal_connect (GTK_OBJECT (window), "key_press_event",
 			G_CALLBACK (on_key_press), (gpointer)table);
 
 	hbox = gtk_hbox_new (FALSE, 0);
 	vbox = gtk_vbox_new (FALSE, 0);
-	table = d_table ();
 	next = d_next ();
 	score = d_score ();
 	time = d_time ();
