@@ -6,3 +6,5 @@
 The last version has some unknow bugs when using the linux timer, 
 which calls the timeout callback function as a thread. In this version,
 The linux timer is removed, and the gtk timer is being used.
+
+Not yet done.
