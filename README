@@ -8,3 +8,5 @@ which calls the timeout callback function as a thread. In this version,
 The linux timer is removed, and the gtk timer is being used.
 
 Not yet done.
+
+comment on 2013-07-31
