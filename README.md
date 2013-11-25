@@ -1,4 +1,4 @@
 tetris
 ======
 
-Tetris game on linux. It is NOT yet finished.
+Tetris game on linux.
